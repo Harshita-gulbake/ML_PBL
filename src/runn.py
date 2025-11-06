@@ -12,7 +12,28 @@ from openai import OpenAI
 from connection import get_connection
 
 model = YOLO('D:\IAgroscan-main\models/modelV3.pt')
+detections_count = {}
+rutaCarpeta = ""
+# 🌾 Translate YOLO Spanish labels → English
+class DiseaseLabelTranslator:
+    def __init__(self):
+        self.label_map = {
+            "cana_puntorojo": "sugarcane_redspot",
+            "cana_amarillo": "sugarcane_yellow",
+            "maiz_manchagris": "maize_grayleafspot",
+            "maiz_roya": "maize_rust",
+            "maiz_tizon": "maize_blight",
+            "platano_cordana": "banana_cordana",
+            "platano_pestalotiopsis": "banana_pestalotiopsis",
+            "platano_sigatoka": "banana_leaf_spot_disease",
+            "platano_sano": "banana_healthy",
+            "maiz_sano": "maize_healthy",
+            "cana_sana": "sugarcane_healthy"
+        }
 
+    def translate(self, label):
+        """Convert Spanish YOLO label → English readable form"""
+        return self.label_map.get(label, label)
 
 class ToplevelWindow(customtkinter.CTkToplevel):
     def __init__(self, parent, *args, **kwargs):
@@ -56,8 +77,8 @@ class mainWindow(customtkinter.CTk):
         self.center_frame.grid_columnconfigure(2, weight=1)
         
         logo = customtkinter.CTkImage(
-            light_image=Image.open("D:\IAgroscan-main\data\imgs/Scanner2.png"),
-            dark_image=Image.open("D:\IAgroscan-main\data\imgs/Scanner2.png"),
+            light_image=Image.open(r"D:\IAgroscan-main\data\imgs/Scanner2.png"),
+            dark_image=Image.open(r"D:\IAgroscan-main\data\imgs/Scanner2.png"),
             size=(200, 200),
         )
         
@@ -186,17 +207,22 @@ class mainWindow(customtkinter.CTk):
 
             for detection in result.boxes:
                 class_id = int(detection.cls)
-                if class_id in detections_count:
-                    detections_count[class_id] += 1
-                else:
-                    print(f"Unknown class detected: {class_id}")
+                spanish_label = result.names[class_id].strip().lower()
+                english_label = translator.translate(spanish_label)
+                # Increment count using English label
+                if english_label not in detections_count:
+                    detections_count[english_label] = 0
+                detections_count[english_label] += 1
 
 
-        detected_classes = {class_names[class_id]: count for class_id, count in detections_count.items() if count > 0}
+
+        # ✅ No need for class_names mapping now
+        detected_classes = {label: count for label, count in detections_count.items() if count > 0}
+        # Statistics
         total_unique_classes_detected = len(detected_classes)
         total_classes_not_detected = 11 - total_unique_classes_detected
         detection_effectiveness = (num_images_detected / (num_images_detected + total_classes_not_detected)) * 100
-
+        # Print report
         print(f"Total unique classes detected: {total_unique_classes_detected}")
         print("Detection count per class:")
         for class_name, count in detected_classes.items():
@@ -374,6 +400,7 @@ class mainWindow(customtkinter.CTk):
         hist_chart = FigureCanvasTkAgg(fig2, master=self.center_frame)
         hist_chart.get_tk_widget().grid(row=1, column=0, padx=10, pady=10, sticky="nsew")
 
+translator = DiseaseLabelTranslator()
 
 app = mainWindow()
 app.mainloop()
